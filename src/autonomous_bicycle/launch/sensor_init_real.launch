@@ -1,0 +1,140 @@
+<launch>
+    <!-- loaf rosbag file -->
+    <arg name="load_rosbag" default="false"/>
+    <arg name="bag_path" default="$(find autonomous_bicycle)/bags/experiments/"/>
+    <arg name="rviz_config" default="rviz_demo_bicycle"/>
+
+    <param if="$(arg load_rosbag)" name="use_sim_time" value="true" />
+
+    <!-- Folder 15_06_2017
+    File: ExperimentBicycleUnisport - Offset: [0 -3]
+    File: ExperimentBicycleParking2 - Offset: [10 -20]
+    File: ExperimentBicycleMensa1 - Offset: [10 -25]
+    File: ExperimentBicycleBiblio - Offset: [12 -0]
+    File: ExperimentBicycleMensa2 - Offset: [15 -27]
+
+    Folder 24_06_2017
+    File: ExperimentBicycleParkingToMensa - Offset: [3 5]
+    File: ExperimentBicycleUnisportToMensa - Offset: [10 0]
+
+    Folder 10_09_2017
+    park_to_mensa_optical - Offset: [10 -10.0]
+
+    Folder 08_07_2017
+    football_field_external     4/5
+    football_field_line_1       3.5/5
+    football_field_line_3       4/5
+    mensa_to_mensa              3/5
+    mensa_to_parking            3.5/5
+    mensa_to_unisport           3.5/5
+    parking_1                   3/5
+    parking_2                   3/5
+    parking_to_mensa            3.5/5
+
+    -->
+
+    <arg name="bag_file" default="football_field_external"/>
+    <arg name="x_offset" value="0.0" />
+    <arg name="y_offset" value="0.0" />
+
+    <node name="static_tf_gps" pkg="tf" type="static_transform_publisher"
+          args="$(arg x_offset) $(arg y_offset) 0  0 0 0 1 world gps_ref 100" />
+
+    <node if="$(arg load_rosbag)" pkg="rosbag" type="play" name="player" output="screen"
+          args="--clock --loop --rate=2 $(arg bag_path)$(arg bag_file).bag"/>
+
+    <!-- convert IMU to angles for visualization -->
+    <node pkg="autonomous_bicycle" type="reference_imu_to_angle.py" name="reference_imu_to_angle" respawn="true" >
+        <param name="rate" type="int" value="100" />
+        <param name="imu_name" type="string" value="imu_steering" />
+        <param name="topic_name_angle" type="string" value="/bicycle/imu_steering" />
+        <param name="topic_name_reference" type="string" value="/bicycle/imu_1" />
+    </node>
+
+    <node pkg="autonomous_bicycle" type="imu_to_angles.py" name="imu_to_angles_lean" respawn="true">
+        <param name="rate" type="int" value="100" />
+        <param name="imu_name" type="string" value="imu_lean" />
+        <param name="topic_name" type="string" value="/bicycle/imu_1" />
+    </node>
+
+    <!-- Launch the conversion from sensor_msgs/NavSatFix to nav_msgs/Odometry -->
+    <node name="gps_conv_front" pkg="gps_common" type="utm_odometry_node">
+        <remap from="/fix" to="/bicycle/gps_front" />
+        <remap from="odom" to="/bicycle/odom_utm_global_gps_front"/>
+        <param name="rot_covariance" value="99999" />
+        <param name="frame_id" value="world" />
+        <param name="child_frame_id" value="odom_global_gps_front" />
+    </node>
+
+    <node name="OdometryUtmToLocal_gps_front" pkg="autonomous_bicycle" type="OdometryUtmToLocal" output="screen">
+        <param name="input_topic_UTM" value="/bicycle/odom_utm_global_gps_front" />
+        <param name="output_topic_odom" value="/bicycle/odom_gps_front" />
+        <param name="frame_id" value="world" />
+        <param name="child_frame_id" value="odom_gps_front" />
+        <param name="offset_x" value="0.0" />
+        <param name="offset_y" value="0.0" />
+        <param name="offset_z" value="0.0" />
+        <param name="orientation" value="0.0" />
+        <param name="reference_model" value="real_data" />
+    </node>
+
+    <node name="gps_conv_rear" pkg="gps_common" type="utm_odometry_node">
+        <remap from="/fix" to="/bicycle/gps_rear" />
+        <remap from="odom" to="/bicycle/odom_utm_global_gps_rear"/>
+        <param name="rot_covariance" value="99999" />
+        <param name="frame_id" value="world" />
+        <param name="child_frame_id" value="odom_global_gps_rear" />
+    </node>
+
+    <node name="OdometryUtmToLocal_gps_rear" pkg="autonomous_bicycle" type="OdometryUtmToLocal" output="screen">
+        <param name="input_topic_UTM" value="/bicycle/odom_utm_global_gps_rear" />
+        <param name="output_topic_odom" value="/bicycle/odom_gps_rear" />
+        <param name="frame_id" value="world" />
+        <param name="child_frame_id" value="odom_gps_rear" />
+        <param name="offset_x" value="0.0" />
+        <param name="offset_y" value="0.0" />
+        <param name="offset_z" value="0.0" />
+        <param name="orientation" value="0.0" />
+        <param name="reference_model" value="real_data" />
+    </node>
+
+    <node name="republish" type="republish" pkg="image_transport" output="screen"
+          args="compressed in:=/bicycle/image_raw raw out:=/bicycle/camera_plot" />
+
+    <!-- Pose estimator -->
+    <node pkg="autonomous_bicycle" type="pose_estimator_real.py" name="pose_estimator_real" respawn="false" output="screen">
+        <param name="rate" value="100"/>
+        <param name="load_rosbag" value="$(arg load_rosbag)"/>
+    </node>
+
+    <!-- Marker generator -->
+    <node pkg="autonomous_bicycle" type="bicycle_pose_marker_publisher.py"
+          name="bicycle_pose_marker_publisher_measurement" respawn="true" >
+        <param name="rate" type="int" value="100" />
+        <param name="alpha" type="double" value="0.4" />
+        <param name="topic_bicycle_state" type="string" value="/bicycle/bicycle_state_measurement" />
+        <param name="model_main_frame" type="string"  value="file://$(find autonomous_bicycle)/models/bike_rviz/main_frame_centered.dae" />
+        <param name="model_steer_frame" type="string" value="file://$(find autonomous_bicycle)/models/bike_rviz/steering_frame_centered.dae" />
+        <param name="tf_steering_frame_name" type="string" value="estimated_odom_measurement" />
+        <param name="marker_name" type="string" value="/bicycle/measurement" />
+    </node>
+
+    <node pkg="autonomous_bicycle" type="bicycle_pose_marker_publisher.py"
+          name="bicycle_pose_marker_publisher_filter" respawn="true" >
+        <param name="rate" type="int" value="100" />
+        <param name="alpha" type="double" value="1.0" />
+        <param name="topic_bicycle_state" type="string" value="/bicycle/bicycle_state_filter" />
+        <param name="model_main_frame" type="string"  value="file://$(find autonomous_bicycle)/models/bike_rviz/main_frame_centered.dae" />
+        <param name="model_steer_frame" type="string" value="file://$(find autonomous_bicycle)/models/bike_rviz/steering_frame_centered.dae" />
+        <param name="tf_steering_frame_name" type="string" value="estimated_odom_filter" />
+        <param name="marker_name" type="string" value="/bicycle/filter" />
+    </node>
+
+    <!-- Launch RQT and RVIZ -->
+    <node name="custom_rqt_perspective" pkg="rqt_gui" type="rqt_gui" respawn="true"
+          args="--perspective-file  $(find autonomous_bicycle)/config/rqt_sensor_init.perspective" />
+
+    <node name="rviz" pkg="rviz" type="rviz" respawn="false"
+          args="-d $(find autonomous_bicycle)/config/$(arg rviz_config).rviz" />
+
+</launch>

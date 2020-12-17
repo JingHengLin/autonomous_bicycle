@@ -1,0 +1,143 @@
+<launch>
+
+    <arg name="IMU_1_port" default="/dev/ttyUSB1"/>
+    <arg name="IMU_1_enable" default="true"/>
+    <arg name="IMU_steer_port" default="/dev/ttyUSB0"/>
+    <arg name="IMU_steer_enable" default="true"/>
+
+    <arg name="GPS_front_port" default="/dev/ttyUSB2"/>
+    <arg name="GPS_front_enable" default="true"/>
+    <arg name="GPS_rear_port" default="/dev/ttyUSB3"/>
+    <arg name="GPS_rear_enable" default="true"/>
+
+    <arg name="arduino_speed_enable" default="true"/>
+    <arg name="arduino_port" default="/dev/ttyACM0"/>
+
+    <arg name="arduino_steering_enable" default="true"/>
+    <arg name="rotary_sensor_port" default="/dev/ttyACM1"/>
+
+    <arg name="check_system_state" default="true"/>
+    <arg name="respawn_enable" default="true"/>
+
+    <!-- check system state -->
+    <node if="$(arg check_system_state)" pkg="autonomous_bicycle" type="ros_state_checker.py"
+          name="ros_state_checker" respawn="$(arg respawn_enable)">
+        <param name="rate" type="double" value="1" />
+        <param name="service_turn_off_script" type="string"
+               value="$(find autonomous_bicycle)/src/BASH_turn_off_system.sh" />
+    </node>
+
+    <!-- Publish imu 1 data -->
+    <node if="$(arg IMU_1_enable)" pkg="autonomous_bicycle"
+          type="sensor_imu_publisher.py" name="sensor_imu_publisher_1" respawn="$(arg respawn_enable)">
+        <param name="rate" type="int" value="100" />
+
+        <rosparam param="publish_transform">True</rosparam>
+        <rosparam param="static_transform">[0.0, 0.0, 0.5, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="calibration_data">[249, 255, 47, 0, 245, 255, 24, 254, 198, 255, 201, 254, 252, 255, 0, 0, 0, 0, 232, 3, 171, 2]</rosparam>
+        <param name="calibration_service" type="string" value="/bicycle/calibration_imu_1" />
+        <param name="calib_topic_name" type="string" value="/bicycle/imu_1_calibration" />
+        <param name="serial_port" type="string" value="$(arg IMU_1_port)" />
+        <param name="topic_name" type="string" value="/bicycle/imu_1" />
+        <param name="fixed_frame" type="string" value="world" />
+        <param name="frame_name" type="string" value="imu_1" />
+    </node>
+
+    <!-- Publish imu steering data -->
+    <node if="$(arg IMU_steer_enable)" pkg="autonomous_bicycle"
+          type="sensor_imu_publisher.py" name="sensor_imu_publisher_steering" respawn="$(arg respawn_enable)" >
+        <param name="rate" type="int" value="100" />
+
+        <rosparam param="publish_transform">True</rosparam>
+        <rosparam param="static_transform">[1.0, 0.0, 0.5, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="calibration_data">[238, 255, 218, 255, 26, 0, 236, 1, 164, 2, 203, 255, 253, 255, 255, 255, 255, 255, 232, 3, 77, 2]</rosparam>
+        <param name="calibration_service" type="string" value="/bicycle/calibration_imu_steering" />
+        <param name="calib_topic_name" type="string" value="/bicycle/imu_steer_calibration" />
+        <param name="serial_port" type="string" value="$(arg IMU_steer_port)" />
+        <param name="topic_name" type="string" value="/bicycle/imu_steering" />
+        <param name="fixed_frame" type="string" value="world" />
+        <param name="frame_name" type="string" value="imu_steering" />
+    </node>
+
+    <!-- Publish GPS 1 data -->
+    <node if="$(arg GPS_front_enable)" pkg="nmea_navsat_driver"
+          type="nmea_serial_driver" name="nmea_serial_driver_gps_front"
+          respawn="$(arg respawn_enable)" ns="GPS_front" >
+
+        <remap to="/bicycle/gps_front"          from="/GPS_front/fix" />
+        <remap to="/bicycle/gps_front_velocity" from="/GPS_front/vel" />
+        <remap to="/bicycle/gps_front_time_ref" from="/GPS_front/time_reference" />
+
+        <param name="port" type="string" value="$(arg GPS_front_port)" />
+        <param name="baud" type="int" value="115200" />
+        <param name="frame_id" type="string" value="gps_front" />
+        <param name="time_ref_source" type="string" value="gps_front" />
+        <param name="useRMC" type="bool" value="false" />
+    </node>
+
+    <!-- Publish GPS 2 data -->
+    <node if="$(arg GPS_rear_enable)" pkg="nmea_navsat_driver"
+          type="nmea_serial_driver" name="nmea_serial_driver_gps_rear"
+          respawn="$(arg respawn_enable)" ns="GPS_rear" >
+        <remap to="/bicycle/gps_rear"           from="/GPS_rear/fix" />
+        <remap to="/bicycle/gps_rear_velocity"  from="/GPS_rear/vel" />
+        <remap to="/bicycle/gps_rear_time_ref"  from="/GPS_rear/time_reference" />
+
+        <param name="port" type="string" value="$(arg GPS_rear_port)" />
+        <param name="baud" type="int" value="115200" />
+        <param name="frame_id" type="string" value="gps_rear" />
+        <param name="time_ref_source" type="string" value="gps_rear" />
+        <param name="useRMC" type="bool" value="false" />
+    </node>
+
+    <!-- Publish Arduino data -->
+    <node if="$(arg arduino_speed_enable)" pkg="rosserial_python"
+          type="serial_node.py" name="serial_node_arduino" respawn="$(arg respawn_enable)" >
+        <param name="port" type="string" value="$(arg arduino_port)" />
+
+        <remap to="/bicycle/altitude"   from="/altitude" />
+        <remap to="/bicycle/distance"   from="/distance" />
+        <remap to="/bicycle/velocity"   from="/velocity" />
+    </node>
+
+    <node if="$(arg arduino_steering_enable)" pkg="rosserial_python" type="serial_node.py"
+          name="serial_node_steering" respawn="$(arg respawn_enable)" >
+        <param name="port" type="string" value="$(arg rotary_sensor_port)" />
+        <remap to="/bicycle/steering_angle"   from="/steering_angle" />
+    </node>
+
+    <!-- Start ros bridge server -->
+    <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch" >
+        <arg name="port" value="9090"/>
+        <arg name="ssl" default="false" />
+        <arg name="authenticate" default="false" />
+        <arg name="certfile" default="/home/ubuntu/Documents/code/node-login/app/server/ssl/server_cert.pem"/>
+        <arg name="keyfile" default="/home/ubuntu/Documents/code/node-login/app/server/ssl/server_key.pem" />
+    </include>
+
+    <!-- launch bag recorder node -->
+    <node pkg="autonomous_bicycle" type="storage_bag_recorder.py"
+          name="storage_bag_recorder" respawn="$(arg respawn_enable)" output="screen" >
+        <param name="default_folder" value="$(find autonomous_bicycle)/data/" />
+    </node>
+
+    <!--  start image streaming -->
+    <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen" respawn="$(arg respawn_enable)" >
+        <param name="video_device" value="/dev/video0" />
+        <param name="framerate" value="10" />
+        <param name="image_width" value="320" />
+        <param name="image_height" value="240" />
+        <param name="pixel_format" value="yuyv" />
+        <param name="camera_frame_id" value="usb_cam" />
+        <param name="io_method" value="mmap"/>
+        <param name="camera_info_url"
+               value="file://$(find autonomous_bicycle)/config/calibration_files/camera_calibration_640_480.yaml"/>
+
+        <remap to="/bicycle/camera_info"    from="/usb_cam/camera_info" />
+        <remap to="/bicycle/image_raw"      from="/usb_cam/image_raw" />
+    </node>
+
+    <!-- Launch nodeJS app for web application -->
+    <node pkg="autonomous_bicycle" type="BASH_launch_node_js_app.sh" name="load_node_js" output="log" />
+
+</launch>

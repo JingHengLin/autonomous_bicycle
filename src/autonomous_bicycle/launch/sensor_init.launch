@@ -1,0 +1,95 @@
+<launch>
+    <arg name="IMU_1_port" default="/dev/ttyUSB0"/>
+    <arg name="IMU_1_enable" default="true"/>
+    <arg name="IMU_2_port" default="/dev/ttyUSB1"/>
+    <arg name="IMU_2_enable" default="true"/>
+    <arg name="IMU_3_port" default="/dev/ttyUSB2"/>
+    <arg name="IMU_3_enable" default="true"/>
+
+    <arg name="GPS_1_port" default="/dev/ttyUSB3"/>
+    <arg name="GPS_1_enable" default="true"/>
+    <arg name="GPS_2_port" default="/dev/ttyUSB4"/>
+    <arg name="GPS_2_enable" default="true"/>
+
+    <!-- Publish imu 1 data -->
+    <node if="$(arg IMU_1_enable)" pkg="autonomous_bicycle"
+          type="sensor_imu_publisher.py" name="sensor_imu_publisher_1" respawn="true">
+        <param name="rate" type="int" value="200" />
+
+        <rosparam param="publish_transform">True</rosparam>
+        <rosparam param="static_transform">[0.0, 0.0, 0.5, 0.0, 0.0, 0.0]</rosparam>
+
+        <param name="serial_port" type="string" value="$(arg IMU_1_port)" />
+        <param name="topic_name" type="string" value="/imu_1" />
+        <param name="fixed_frame" type="string" value="world" />
+        <param name="frame_name" type="string" value="imu_1" />
+    </node>
+
+    <!-- Publish imu 2 data -->
+    <node if="$(arg IMU_2_enable)" pkg="autonomous_bicycle"
+          type="sensor_imu_publisher.py" name="sensor_imu_publisher_2" respawn="true" >
+        <param name="rate" type="int" value="200" />
+
+        <rosparam param="publish_transform">True</rosparam>
+        <rosparam param="static_transform">[1.0, 1.0, 0.5, 0.0, 0.0, 0.0]</rosparam>
+
+        <param name="serial_port" type="string" value="$(arg IMU_2_port)" />
+        <param name="topic_name" type="string" value="/imu_2" />
+        <param name="fixed_frame" type="string" value="world" />
+        <param name="frame_name" type="string" value="imu_2" />
+    </node>
+
+    <!-- Publish imu 3 data -->
+    <node if="$(arg IMU_3_enable)" pkg="autonomous_bicycle"
+          type="sensor_imu_publisher.py" name="sensor_imu_publisher_3" respawn="true" >
+        <param name="rate" type="int" value="200" />
+
+        <rosparam param="publish_transform">True</rosparam>
+        <rosparam param="static_transform">[2.0, 2.3, 0.5, 0.0, 0.0, 0.0]</rosparam>
+
+        <param name="serial_port" type="string" value="$(arg IMU_3_port)" />
+        <param name="topic_name" type="string" value="/imu_3" />
+        <param name="fixed_frame" type="string" value="world" />
+        <param name="frame_name" type="string" value="imu_3" />
+    </node>
+
+    <!-- Publish GPS 1 data -->
+    <node if="$(arg GPS_1_enable)" pkg="nmea_navsat_driver"
+          type="nmea_serial_driver" name="nmea_serial_driver_gps_1" respawn="true" ns="GPS_1" >
+        <param name="port" type="string" value="$(arg GPS_1_port)" />
+        <param name="baud" type="int" value="9600" />
+
+        <param name="frame_id" type="string" value="gps_1" />
+        <param name="time_ref_source" type="string" value="gps_1" />
+        <param name="useRMC" type="bool" value="false" />
+    </node>
+
+    <!-- Publish GPS 2 data -->
+    <node if="$(arg GPS_2_enable)" pkg="nmea_navsat_driver"
+          type="nmea_serial_driver" name="nmea_serial_driver_gps_2" respawn="true" ns="GPS_2" >
+        <param name="port" type="string" value="$(arg GPS_2_port)" />
+        <param name="baud" type="int" value="9600" />
+
+        <param name="frame_id" type="string" value="gps_2" />
+        <param name="time_ref_source" type="string" value="gps_2" />
+        <param name="useRMC" type="bool" value="false" />
+    </node>
+
+<!-- Publish GPS GNSS3 click data
+    <node pkg="nmea_navsat_driver" type="nmea_serial_driver" name="nmea_serial_driver_gps_2" required="false" ns="GPS_2" >
+        <param name="port" type="string" value="/dev/ttyUSB3" />
+        <param name="baud" type="int" value="115200" />
+
+        <param name="frame_id" type="string" value="gps" />
+        <param name="time_ref_source" type="string" value="gps" />
+        <param name="useRMC" type="bool" value="false" />
+    </node>
+-->
+    <!-- Launch RQT and RVIZ -->
+    <node name="custom_rqt_perspective" pkg="rqt_gui" type="rqt_gui" required="false"
+          args="--perspective-file  $(find autonomous_bicycle)/config/rqt_sensor_init.perspective" />
+
+    <node name="rviz" pkg="rviz" type="rviz" required="false"
+          args="-d $(find autonomous_bicycle)/config/rviz_sensor_init.rviz"     />
+
+</launch>
